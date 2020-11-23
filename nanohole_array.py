@@ -12,7 +12,7 @@ def simulation(square,THICKNESS,cx,cy,cz):
     fcen = (fmax+fmin)/2 						#set centre of gaussian source
     df = fmax-fmin 							#set width of gaussian source
     nfreq = 50 								#number of frequencies between min and max
-    dpml = 0.25 							#thickness of PML (top and bottom) um
+    dpml = 0.4 							#thickness of PML (top and bottom) um
     resolution = 100 							#pixels/um
     BASE = PADDING-THICKNESS 						#metal thin film is set on a PDMS base
     sz = THICKNESS + 2 * PADDING + 2 * dpml 				#size of simulation
@@ -20,6 +20,7 @@ def simulation(square,THICKNESS,cx,cy,cz):
     sy = period 							#size of simulation
     box = 0.010 							#optimised size of radiation monitoring box set around dipole
     cell = mp.Vector3(sx, sy, sz)
+    runtime = 1600
     
     #define geometry
     slab = mp.Block(size=mp.Vector3(1e20, 1e20, THICKNESS), center=mp.Vector3(0, 0, -THICKNESS/2), material=Au) 			#Gold thin film
@@ -33,7 +34,7 @@ def simulation(square,THICKNESS,cx,cy,cz):
     sources = [
         mp.Source(
             mp.GaussianSource(fcen, fwidth=df),
-            component=mp.Ez,
+            component=mp.Ex,
             center=mp.Vector3(cx, cy, cz)
         )
     ]
@@ -63,14 +64,14 @@ def simulation(square,THICKNESS,cx,cy,cz):
     
     #power monitors surrounding 'free space'
     top_box = sim.add_flux(fcen, df, nfreq, 
-                           mp.FluxRegion(center=mp.Vector3(0,0,0.5*sz-dpml), size=mp.Vector3(sx,sy,0),weight=+1),
+                           mp.FluxRegion(center=mp.Vector3(0,0,0.5*sz-dpml), size=mp.Vector3(sx,sy,0)),
                            mp.FluxRegion(center=mp.Vector3(0,0.5*sy,0.25*sz), size=mp.Vector3(sx,0,0.5*sz-dpml),weight=+1),
                            mp.FluxRegion(center=mp.Vector3(0,-0.5*sy,0.25*sz), size=mp.Vector3(sx,0,0.5*sz-dpml),weight=-1),
                            mp.FluxRegion(center=mp.Vector3(0.5*sx,0,0.25*sz), size=mp.Vector3(0,sy,0.5*sz-dpml),weight=+1),
                            mp.FluxRegion(center=mp.Vector3(-0.5*sx,0,0.25*sz), size=mp.Vector3(0,sy,0.5*sz-dpml),weight=-1))
     
     #run simulation until the source has decayed "fully"
-    sim.run(until_after_sources=mp.stop_when_fields_decayed(5, mp.Ez, mp.Vector3(cx,cy,cz), 1e-8))
+    sim.run(until_after_sources=runtime)
     
     #collect radiation information
     init_rad = np.asarray(mp.get_fluxes(rad_box))               
@@ -106,7 +107,7 @@ def simulation(square,THICKNESS,cx,cy,cz):
                            mp.FluxRegion(center=mp.Vector3(0.5*sx,0,0.25*sz), size=mp.Vector3(0,sy,0.5*sz-dpml),weight=+1),
                            mp.FluxRegion(center=mp.Vector3(-0.5*sx,0,0.25*sz), size=mp.Vector3(0,sy,0.5*sz-dpml),weight=-1))
     
-    sim.run(until_after_sources=mp.stop_when_fields_decayed(5, mp.Ez, mp.Vector3(cx,cy,cz), 1e-8))
+    sim.run(until_after_sources=runtime)
     
     rad = np.asarray(mp.get_fluxes(rad_box2))
     dipole = np.asarray(mp.get_fluxes(dipole_box2))
@@ -121,15 +122,17 @@ def simulation(square,THICKNESS,cx,cy,cz):
     data[4,:] = init_top
     data[5,:] = top
         
-    np.savetxt(repr(cz)+'.txt',data)
+    np.savetxt('REPLACE.txt',data)
     
     return()
 
 
-THICKNESS = 0.045                               #thickness of the metal for the substrate
-square = 0.500                                  #Period of the square array
-cx = -0.5*0.145                                 #Position of highest enhancement for a Ez Polarised source
+THICKNESS = 0.045 #thickness of the metal for the substrate
+square = 0.500 #Period of the square array
+#cx = -0.5*0.145 #Position of highest enhancement for a Ez Polarised source
+cx = np.linspace(-0.5*square,0,25)
 cy = 0
-cz = np.linspace(0.005,0.100,25)
-for i in cz:
-  simulation(square,THICKNESS,cx,cy,cz[i])
+cz = 0.015
+#cz = np.linspace(0.005,0.100,25)
+#Used in combination with a BASH script that will run on Imperial's HPC.
+simulation(square,THICKNESS,cx[REPLACE],cy,cz)
